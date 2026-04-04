@@ -27,7 +27,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(nav_server_base src/navigation_server.cpp)
-ament_target_dependencies(nav_server_base rclcpp rclcpp_action action_tutorials_interfaces)
+ament_target_dependencies(nav_server_base rclcpp rclcpp_action action_tutorials_interfaces geometry_msgs nav_msgs)
 
 add_executable(nav_client_base src/navigation_client.cpp)
 ament_target_dependencies(nav_client_base rclcpp rclcpp_action action_tutorials_interfaces)

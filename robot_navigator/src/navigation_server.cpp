@@ -3,6 +3,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "action_tutorials_interfaces/action/move_robot.hpp"
+#include "geometry_msgs/msg/twist.hpp"
+#include "nav_msgs/msg/odometry.hpp"
 
 class NavigationServer : public rclcpp::Node
 {
@@ -13,6 +15,11 @@ public:
   NavigationServer() : Node("navigation_server")
   {
     using namespace std::placeholders;
+
+    cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
+    
+    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
+      "odom", 10, std::bind(&NavigationServer::odom_callback, this, _1));
 
     action_server_ = rclcpp_action::create_server<MoveRobot>(
       this,
@@ -26,6 +33,15 @@ public:
 
 private:
   rclcpp_action::Server<MoveRobot>::SharedPtr action_server_;
+  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
+  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
+  
+  double current_x_ = 0.0; 
+
+  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
+  {
+    current_x_ = msg->pose.pose.position.x;
+  }
 
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid,
@@ -47,11 +63,50 @@ private:
   
   void handle_accepted(const std::shared_ptr<GoalHandleMoveRobot> goal_handle)
   {
-    
+    std::thread{std::bind(&NavigationServer::execute, this, std::placeholders::_1), goal_handle}.detach();
+  }
+
+  void execute(const std::shared_ptr<GoalHandleMoveRobot> goal_handle)
+  {
+    rclcpp::Rate loop_rate(10); // Impostiamo il loop a 10 Hz
+    const auto goal = goal_handle->get_goal();
+    auto feedback = std::make_shared<MoveRobot::Feedback>();
     auto result = std::make_shared<MoveRobot::Result>();
-    result->final_x = 0.0; 
-    goal_handle->succeed(result);
-    RCLCPP_INFO(this->get_logger(), "Goal completed!");
+    auto twist_msg = geometry_msgs::msg::Twist();
+
+    // Ciclo di controllo: finché ROS è attivo e non abbiamo raggiunto o superato target_x
+    while (rclcpp::ok() && current_x_ < goal->target_x) {
+      
+      // Controlliamo se nel frattempo il client ha chiesto di annullare
+      if (goal_handle->is_canceling()) {
+        twist_msg.linear.x = 0.0;
+        cmd_vel_pub_->publish(twist_msg); // Fermiamo il robot
+        result->final_x = current_x_;
+        goal_handle->canceled(result);
+        RCLCPP_INFO(this->get_logger(), "Goal canceled!");
+        return;
+      }
+
+      // Muoviamo il robot in avanti (0.2 m/s) 
+      twist_msg.linear.x = 0.2;
+      cmd_vel_pub_->publish(twist_msg);
+
+      // Inviamo il feedback al client
+      feedback->current_x = current_x_;
+      goal_handle->publish_feedback(feedback);
+
+      loop_rate.sleep(); // Pausa per mantenere i 10 Hz
+    }
+
+    // Se il ciclo finisce (quindi target_x è stato raggiunto)
+    if (rclcpp::ok()) {
+      twist_msg.linear.x = 0.0;
+      cmd_vel_pub_->publish(twist_msg); // Fermiamo i motori
+      
+      result->final_x = current_x_;
+      goal_handle->succeed(result);
+      RCLCPP_INFO(this->get_logger(), "Goal completed! Reached X: %.2f", current_x_);
+    }
   }
 };
 

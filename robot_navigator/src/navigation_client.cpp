@@ -22,9 +22,9 @@ public:
     }
 
     auto goal_msg = MoveRobot::Goal();
-    goal_msg.target_x = 1.0; 
-    goal_msg.target_y = 1.0; 
-    goal_msg.target_theta = 1.0; 
+    goal_msg.target_x = 3.0; 
+    goal_msg.target_y = 0.0; 
+    goal_msg.target_theta = 0.0; 
 
     RCLCPP_INFO(this->get_logger(), "Sending goal to server...");
 
