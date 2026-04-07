@@ -1,4 +1,6 @@
 #include <memory>
+#include <thread>
+#include <iostream>
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "action_tutorials_interfaces/action/move_robot.hpp"
@@ -12,19 +14,62 @@ public:
   NavigationClient() : Node("navigation_client")
   {
     client_ptr_ = rclcpp_action::create_client<MoveRobot>(this, "navigate_robot");
+
+    ui_thread_ = std::thread(&NavigationClient::ui_loop, this);
   }
 
-  void send_goal()
+  ~NavigationClient() {
+    if (ui_thread_.joinable()) {
+      ui_thread_.join();
+    }
+  }
+
+private:
+
+  rclcpp_action::Client<MoveRobot>::SharedPtr client_ptr_;
+  std::thread ui_thread_;
+  
+  GoalHandleMoveRobot::SharedPtr current_goal_handle_;
+
+  void ui_loop()
   {
-    if (!client_ptr_->wait_for_action_server(std::chrono::seconds(60))) {
-      RCLCPP_ERROR(this->get_logger(), "Server not available.");
-      return;
+    while (!client_ptr_->wait_for_action_server(std::chrono::seconds(2))) {
+      if (!rclcpp::ok()) return;
+      RCLCPP_INFO(this->get_logger(), "Waiting for Action Server...");
     }
 
+    while (rclcpp::ok()) {
+      std::cout << "\n========== MENU ==========\n";
+      std::cout << "1. Set a new Target (x, y, theta)\n";
+      std::cout << "2. Cancel current Target\n";
+      std::cout << "Choose an option: ";
+      
+      int choice;
+      std::cin >> choice;
+
+      if (choice == 1) {
+        float x, y, theta;
+        std::cout << "Enter target X: "; std::cin >> x;
+        std::cout << "Enter target Y: "; std::cin >> y;
+        std::cout << "Enter target Theta: "; std::cin >> theta;
+        send_goal(x, y, theta);
+      } 
+      else if (choice == 2) {
+        cancel_goal();
+      } 
+      else {
+        std::cout << "Invalid choice. Try again.\n";
+      }
+    }
+  }
+
+  void send_goal(float x, float y, float theta)
+  {
+
     auto goal_msg = MoveRobot::Goal();
-    goal_msg.target_x = 3.0; 
-    goal_msg.target_y = 0.0; 
-    goal_msg.target_theta = 0.0; 
+    goal_msg.target_x = x; 
+    goal_msg.target_y = y; 
+    goal_msg.target_theta = theta; 
 
     RCLCPP_INFO(this->get_logger(), "Sending goal to server...");
 
@@ -32,11 +77,21 @@ public:
     send_goal_options.goal_response_callback =
       std::bind(&NavigationClient::goal_response_callback, this, std::placeholders::_1);
 
+    send_goal_options.result_callback =
+      std::bind(&NavigationClient::result_callback, this, std::placeholders::_1);
+
     client_ptr_->async_send_goal(goal_msg, send_goal_options);
   }
 
-private:
-  rclcpp_action::Client<MoveRobot>::SharedPtr client_ptr_;
+  void cancel_goal()
+  {
+    if (current_goal_handle_) {
+      RCLCPP_INFO(this->get_logger(), "Sending cancel request...");
+      client_ptr_->async_cancel_goal(current_goal_handle_);
+    } else {
+      RCLCPP_WARN(this->get_logger(), "No active goal to cancel!");
+    }
+  }
 
   void goal_response_callback(const GoalHandleMoveRobot::SharedPtr & goal_handle)
   {
@@ -44,6 +99,28 @@ private:
       RCLCPP_ERROR(this->get_logger(), "Goal rejected by server.");
     } else {
       RCLCPP_INFO(this->get_logger(), "Goal accepted by server!");
+
+      current_goal_handle_ = goal_handle;
+    }
+  }
+
+  void result_callback(const GoalHandleMoveRobot::WrappedResult & result)
+  {
+    current_goal_handle_ = nullptr; 
+
+    switch (result.code) {
+      case rclcpp_action::ResultCode::SUCCEEDED:
+        RCLCPP_INFO(this->get_logger(), "Goal Succeeded!");
+        break;
+      case rclcpp_action::ResultCode::ABORTED:
+        RCLCPP_ERROR(this->get_logger(), "Goal Aborted by server.");
+        break;
+      case rclcpp_action::ResultCode::CANCELED:
+        RCLCPP_ERROR(this->get_logger(), "Goal successfully Canceled!");
+        break;
+      default:
+        RCLCPP_ERROR(this->get_logger(), "Unknown result code.");
+        break;
     }
   }
 };
@@ -51,11 +128,7 @@ private:
 int main(int argc, char ** argv)
 {
   rclcpp::init(argc, argv);
-  auto client_node = std::make_shared<NavigationClient>();
-  
-  client_node->send_goal();
-  
-  rclcpp::spin(client_node);
+  rclcpp::spin(std::make_shared<NavigationClient>());
   rclcpp::shutdown();
   return 0;
 }

@@ -68,40 +68,35 @@ private:
 
   void execute(const std::shared_ptr<GoalHandleMoveRobot> goal_handle)
   {
-    rclcpp::Rate loop_rate(10); // Impostiamo il loop a 10 Hz
+    rclcpp::Rate loop_rate(10);
     const auto goal = goal_handle->get_goal();
     auto feedback = std::make_shared<MoveRobot::Feedback>();
     auto result = std::make_shared<MoveRobot::Result>();
     auto twist_msg = geometry_msgs::msg::Twist();
 
-    // Ciclo di controllo: finché ROS è attivo e non abbiamo raggiunto o superato target_x
     while (rclcpp::ok() && current_x_ < goal->target_x) {
       
-      // Controlliamo se nel frattempo il client ha chiesto di annullare
       if (goal_handle->is_canceling()) {
         twist_msg.linear.x = 0.0;
-        cmd_vel_pub_->publish(twist_msg); // Fermiamo il robot
+        cmd_vel_pub_->publish(twist_msg); 
         result->final_x = current_x_;
         goal_handle->canceled(result);
         RCLCPP_INFO(this->get_logger(), "Goal canceled!");
         return;
       }
 
-      // Muoviamo il robot in avanti (0.2 m/s) 
       twist_msg.linear.x = 0.2;
       cmd_vel_pub_->publish(twist_msg);
 
-      // Inviamo il feedback al client
       feedback->current_x = current_x_;
       goal_handle->publish_feedback(feedback);
 
-      loop_rate.sleep(); // Pausa per mantenere i 10 Hz
+      loop_rate.sleep();
     }
 
-    // Se il ciclo finisce (quindi target_x è stato raggiunto)
     if (rclcpp::ok()) {
       twist_msg.linear.x = 0.0;
-      cmd_vel_pub_->publish(twist_msg); // Fermiamo i motori
+      cmd_vel_pub_->publish(twist_msg); 
       
       result->final_x = current_x_;
       goal_handle->succeed(result);
