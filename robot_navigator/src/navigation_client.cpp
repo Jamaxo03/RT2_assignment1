@@ -106,7 +106,9 @@ private:
 
   void result_callback(const GoalHandleMoveRobot::WrappedResult & result)
   {
-    current_goal_handle_ = nullptr; 
+    if (current_goal_handle_ && current_goal_handle_->get_goal_id() == result.goal_id) {
+      current_goal_handle_ = nullptr; 
+    }
 
     switch (result.code) {
       case rclcpp_action::ResultCode::SUCCEEDED:
