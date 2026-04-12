@@ -3,8 +3,9 @@
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "action_tutorials_interfaces/action/move_robot.hpp"
-#include "geometry_msgs/msg/twist.hpp"
-#include "nav_msgs/msg/odometry.hpp"
+#include "tf2_ros/transform_broadcaster.h"
+#include "tf2/LinearMath/Quaternion.h"
+#include "geometry_msgs/msg/transform_stamped.hpp"
 
 class NavigationServer : public rclcpp::Node
 {
@@ -16,10 +17,7 @@ public:
   {
     using namespace std::placeholders;
 
-    cmd_vel_pub_ = this->create_publisher<geometry_msgs::msg::Twist>("cmd_vel", 10);
-    
-    odom_sub_ = this->create_subscription<nav_msgs::msg::Odometry>(
-      "odom", 10, std::bind(&NavigationServer::odom_callback, this, _1));
+    tf_broadcaster_ = std::make_unique<tf2_ros::TransformBroadcaster>(*this);
 
     action_server_ = rclcpp_action::create_server<MoveRobot>(
       this,
@@ -33,15 +31,7 @@ public:
 
 private:
   rclcpp_action::Server<MoveRobot>::SharedPtr action_server_;
-  rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_vel_pub_;
-  rclcpp::Subscription<nav_msgs::msg::Odometry>::SharedPtr odom_sub_;
-  
-  double current_x_ = 0.0; 
-
-  void odom_callback(const nav_msgs::msg::Odometry::SharedPtr msg)
-  {
-    current_x_ = msg->pose.pose.position.x;
-  }
+  std::unique_ptr<tf2_ros::TransformBroadcaster> tf_broadcaster_;
 
   rclcpp_action::GoalResponse handle_goal(
     const rclcpp_action::GoalUUID & uuid,
@@ -51,15 +41,13 @@ private:
     (void)uuid;
     return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
   }
-
   
   rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleMoveRobot> goal_handle)
   {
-    RCLCPP_INFO(this->get_logger(), "Cancellation accepted.");
+    RCLCPP_INFO(this->get_logger(), "Cancellation accepted");
     (void)goal_handle;
     return rclcpp_action::CancelResponse::ACCEPT;
   }
-
   
   void handle_accepted(const std::shared_ptr<GoalHandleMoveRobot> goal_handle)
   {
@@ -68,39 +56,38 @@ private:
 
   void execute(const std::shared_ptr<GoalHandleMoveRobot> goal_handle)
   {
-    rclcpp::Rate loop_rate(10);
+    rclcpp::Rate loop_rate(10); 
     const auto goal = goal_handle->get_goal();
-    auto feedback = std::make_shared<MoveRobot::Feedback>();
     auto result = std::make_shared<MoveRobot::Result>();
-    auto twist_msg = geometry_msgs::msg::Twist();
 
-    while (rclcpp::ok() && current_x_ < goal->target_x) {
+    while (rclcpp::ok()) {
       
       if (goal_handle->is_canceling()) {
-        twist_msg.linear.x = 0.0;
-        cmd_vel_pub_->publish(twist_msg); 
-        result->final_x = current_x_;
         goal_handle->canceled(result);
         RCLCPP_INFO(this->get_logger(), "Goal canceled!");
         return;
       }
 
-      twist_msg.linear.x = 0.2;
-      cmd_vel_pub_->publish(twist_msg);
+      geometry_msgs::msg::TransformStamped t;
 
-      feedback->current_x = current_x_;
-      goal_handle->publish_feedback(feedback);
+      t.header.stamp = this->get_clock()->now();
+      t.header.frame_id = "base_footprint"; 
+      t.child_frame_id = "goal_frame";     
+
+      t.transform.translation.x = goal->target_x;
+      t.transform.translation.y = goal->target_y;
+      t.transform.translation.z = 0.0;
+
+      tf2::Quaternion q;
+      q.setRPY(0, 0, goal->target_theta);
+      t.transform.rotation.x = q.x();
+      t.transform.rotation.y = q.y();
+      t.transform.rotation.z = q.z();
+      t.transform.rotation.w = q.w();
+
+      tf_broadcaster_->sendTransform(t);
 
       loop_rate.sleep();
-    }
-
-    if (rclcpp::ok()) {
-      twist_msg.linear.x = 0.0;
-      cmd_vel_pub_->publish(twist_msg); 
-      
-      result->final_x = current_x_;
-      goal_handle->succeed(result);
-      RCLCPP_INFO(this->get_logger(), "Goal completed! Reached X: %.2f", current_x_);
     }
   }
 };

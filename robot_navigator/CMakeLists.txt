@@ -13,6 +13,9 @@ find_package(rclcpp_components REQUIRED)
 find_package(geometry_msgs REQUIRED)
 find_package(nav_msgs REQUIRED)
 find_package(action_tutorials_interfaces REQUIRED)
+find_package(tf2 REQUIRED)
+find_package(tf2_ros REQUIRED)
+find_package(tf2_geometry_msgs REQUIRED)
 
 if(BUILD_TESTING)
   find_package(ament_lint_auto REQUIRED)
@@ -27,7 +30,7 @@ if(BUILD_TESTING)
 endif()
 
 add_executable(nav_server_base src/navigation_server.cpp)
-ament_target_dependencies(nav_server_base rclcpp rclcpp_action action_tutorials_interfaces geometry_msgs nav_msgs)
+ament_target_dependencies(nav_server_base rclcpp rclcpp_action action_tutorials_interfaces geometry_msgs nav_msgs tf2 tf2_ros tf2_geometry_msgs)
 
 add_executable(nav_client_base src/navigation_client.cpp)
 ament_target_dependencies(nav_client_base rclcpp rclcpp_action action_tutorials_interfaces)
