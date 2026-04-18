@@ -11,7 +11,6 @@
 #include "tf2/exceptions.h"
 #include "geometry_msgs/msg/transform_stamped.hpp"
 #include "nav_msgs/msg/odometry.hpp"
-
 #include "rclcpp_components/register_node_macro.hpp"
 
 namespace robot_navigator 

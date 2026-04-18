@@ -1,10 +1,10 @@
 #include <memory>
 #include <thread>
 #include <iostream>
+#include <limits>
 #include "rclcpp/rclcpp.hpp"
 #include "rclcpp_action/rclcpp_action.hpp"
 #include "action_tutorials_interfaces/action/move_robot.hpp"
-
 #include "rclcpp_components/register_node_macro.hpp"
 
 namespace robot_navigator
@@ -47,13 +47,39 @@ namespace robot_navigator
         std::cout << "Choose an option: ";
         
         int choice;
-        std::cin >> choice;
+        
+        if (!(std::cin >> choice)) {
+          std::cout << "Invalid input! Please enter a number.\n";
+          
+          std::cin.clear(); 
+          std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n'); 
+          
+          continue; 
+        }
 
         if (choice == 1) {
           float x, y, theta;
+
           std::cout << "Enter target X: "; std::cin >> x;
+          while (!(std::cin >> x)) {
+            std::cout << "Invalid input! Please enter a number for X: ";
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+          }
+
           std::cout << "Enter target Y: "; std::cin >> y;
+          while (!(std::cin >> y)) {
+            std::cout << "Invalid input! Please enter a number for Y: ";
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+          }
+          
           std::cout << "Enter target Theta: "; std::cin >> theta;
+          while (!(std::cin >> theta)) {
+            std::cout << "Invalid input! Please enter a number for Theta: ";
+            std::cin.clear();
+            std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+          }
           send_goal(x, y, theta);
         } 
         else if (choice == 2) {
