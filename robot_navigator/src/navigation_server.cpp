@@ -75,21 +75,13 @@ namespace robot_navigator
 
     rclcpp_action::GoalResponse handle_goal(const rclcpp_action::GoalUUID & uuid,std::shared_ptr<const MoveRobot::Goal> goal)
     {
-      std::lock_guard<std::mutex> lock(control_mutex_);
-    
-      if (active_goal_handle_ && active_goal_handle_->is_active()) {
-        RCLCPP_INFO(this->get_logger(), "goal_frame overwrited!");
-      }
-    
-      RCLCPP_INFO(this->get_logger(), "Goal received! Go to X: %.2f, Y: %.2f, theta: %.2f", goal->target_x, goal->target_y, goal->target_theta);
-    
       (void)uuid;
+      (void)goal;
       return rclcpp_action::GoalResponse::ACCEPT_AND_EXECUTE;
     }
   
     rclcpp_action::CancelResponse handle_cancel(const std::shared_ptr<GoalHandleMoveRobot> goal_handle)
     {
-      RCLCPP_INFO(this->get_logger(), "Cancellation accepted");
       (void)goal_handle;
       return rclcpp_action::CancelResponse::ACCEPT;
     }
@@ -198,7 +190,6 @@ namespace robot_navigator
       cmd_vel_pub_->publish(twist_msg);
 
       goal_handle->succeed(result);
-      RCLCPP_INFO(this->get_logger(), "Goal Reached Successfully!");
     }
   };
 }

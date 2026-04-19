@@ -60,21 +60,21 @@ namespace robot_navigator
         if (choice == 1) {
           float x, y, theta;
 
-          std::cout << "Enter target X: "; std::cin >> x;
+          std::cout << "Enter target X: ";
           while (!(std::cin >> x)) {
             std::cout << "Invalid input! Please enter a number for X: ";
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
           }
 
-          std::cout << "Enter target Y: "; std::cin >> y;
+          std::cout << "Enter target Y: ";
           while (!(std::cin >> y)) {
             std::cout << "Invalid input! Please enter a number for Y: ";
             std::cin.clear();
             std::cin.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
           }
           
-          std::cout << "Enter target Theta: "; std::cin >> theta;
+          std::cout << "Enter target Theta: ";
           while (!(std::cin >> theta)) {
             std::cout << "Invalid input! Please enter a number for Theta: ";
             std::cin.clear();
@@ -98,8 +98,6 @@ namespace robot_navigator
       goal_msg.target_y = y; 
       goal_msg.target_theta = theta; 
 
-      RCLCPP_INFO(this->get_logger(), "Sending goal to server...");
-
       auto send_goal_options = rclcpp_action::Client<MoveRobot>::SendGoalOptions();
       send_goal_options.goal_response_callback =
         std::bind(&NavigationClient::goal_response_callback, this, std::placeholders::_1);
@@ -113,7 +111,6 @@ namespace robot_navigator
     void cancel_goal()
     {
       if (current_goal_handle_) {
-        RCLCPP_INFO(this->get_logger(), "Sending cancel request...");
         client_ptr_->async_cancel_goal(current_goal_handle_);
       } else {
         RCLCPP_WARN(this->get_logger(), "No active goal to cancel!");
@@ -122,10 +119,7 @@ namespace robot_navigator
 
     void goal_response_callback(const GoalHandleMoveRobot::SharedPtr & goal_handle)
     {
-      if (!goal_handle) {
-        RCLCPP_ERROR(this->get_logger(), "Goal rejected by server.");
-      } else {
-        RCLCPP_INFO(this->get_logger(), "Goal accepted by server!");
+      if (goal_handle){
         current_goal_handle_ = goal_handle;
       }
     }
@@ -136,19 +130,8 @@ namespace robot_navigator
         current_goal_handle_ = nullptr; 
       }
 
-      switch (result.code) {
-        case rclcpp_action::ResultCode::SUCCEEDED:
-          RCLCPP_INFO(this->get_logger(), "Goal Succeeded!");
-          break;
-        case rclcpp_action::ResultCode::ABORTED:
-          RCLCPP_ERROR(this->get_logger(), "Goal Aborted by server.");
-          break;
-        case rclcpp_action::ResultCode::CANCELED:
-          RCLCPP_ERROR(this->get_logger(), "Goal successfully Canceled!");
-          break;
-        default:
-          RCLCPP_ERROR(this->get_logger(), "Unknown result code.");
-          break;
+      if (result.code == rclcpp_action::ResultCode::SUCCEEDED) {
+        RCLCPP_INFO(this->get_logger(), "Goal Succeeded!");
       }
     }
   };
